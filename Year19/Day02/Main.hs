@@ -4,17 +4,13 @@
 
 module Main where
 
-import           Util.Main1 (main12)
-import qualified Data.IntMap.Strict as M
-import           Data.Monoid
-import           Data.List (sort)
-import           Control.Arrow ((***), (>>>))
-
-import           Data.Intcode ( IntcodeProg, IntcodeRes
-                              , runIntcode
-                              , patchIntcode
-                              , fromCVS
-                              )
+import Util.Main1 (main12)
+import Data.Intcode ( IntcodeProg
+                    -- , IntcodeRes
+                    , runIntcode
+                    , patchIntcode
+                    , fromCVS
+                    )
 
 -- ----------------------------------------
 
