@@ -12,7 +12,7 @@ import Data.List (zipWith4)
 -- ----------------------------------------
 
 main :: IO ()
-main = main12 "2019-02"
+main = main12 "2019-04"
        inp captcha1
        inp captcha2
 
@@ -65,7 +65,7 @@ inp :: String
 inp = "240298-784956"
 
 res1, res2 :: Int
-res1 = 42
-res2 = 43
+res1 = 1150
+res2 = 748
 
 -- ----------------------------------------
