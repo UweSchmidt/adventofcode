@@ -8,9 +8,7 @@ module Main where
 
 import Util.Main1 (main12)
 
-import Control.Arrow ((***), second)
-
-import Data.Foldable
+import Control.Arrow   ((***))
 import Data.List.Split (splitOn)
 
 import qualified Data.Set as S
@@ -55,45 +53,38 @@ dist (x, y) = abs x + abs y
 both :: (a -> b) -> (a, a) -> (b, b)
 both f = f *** f
 
-movesToPSet :: Moves -> PSet
-movesToPSet = S.fromList . movesToPath
-
-path1 :: Dir -> Dist -> Pos -> (Pos, Path)
-path1 dir dst (x, y) = ppp dir
+moveToPath :: Dir -> Dist -> Pos -> (Pos, Path)
+moveToPath dir dst (x, y) = ppp dir
   where
-    ixs = [0 .. dst - 1]
+    ixs = [1 .. dst]
     ppp U = ((x, y + dst), [(x, y + i) | i <- ixs])
     ppp D = ((x, y - dst), [(x, y - i) | i <- ixs])
     ppp R = ((x + dst, y), [(x + i, y) | i <- ixs])
     ppp L = ((x - dst, y), [(x - i, y) | i <- ixs])
 
-
 movesToPath :: Moves -> Path
-movesToPath ms = pf [pos]
+movesToPath = mv2ps orig
   where
-    (pos, pf) = movesToPathF' ms
-
-movesToPathF' :: Moves -> (Pos, PathF)
-movesToPathF' = foldl' addMove (orig, id)
-  where
-    addMove :: (Pos, PathF) -> Move -> (Pos, PathF)
-    addMove (p, pf) (Move dir dst) =
-      second (\ ps -> pf . (ps ++)) $ path1 dir dst p
+    mv2ps :: Pos -> Moves -> Path
+    mv2ps _ []                  = []
+    mv2ps p (Move dir dst : ms) = ps1 ++ mv2ps p' ms
+      where
+        (p', ps1) = moveToPath dir dst p
 
 path2Intersection :: (Path, Path) -> PSet
 path2Intersection = pSet2Intersection . both S.fromList
 
 pSet2Intersection :: (PSet, PSet) -> PSet
-pSet2Intersection =  S.delete orig . uncurry S.intersection
+pSet2Intersection = uncurry S.intersection
 
 crossings :: Input -> PSet
-crossings = pSet2Intersection . both movesToPSet
+crossings = pSet2Intersection . both (S.fromList . movesToPath)
 
-lengthTo :: Path -> Pos -> Int
-lengthTo ps p = length $ takeWhile (/= p) ps
+lengthTo :: Pos -> Path -> Int
+lengthTo p ps = 1 + length (takeWhile (/= p) ps)
 
-lengthTo2 :: (Path, Path) -> Pos -> Int
-lengthTo2 (ps1, ps2) p = lengthTo ps1 p + lengthTo ps2 p
+lengthTo2 :: Pos -> (Path, Path) -> Int
+lengthTo2 p = uncurry (+) . both (lengthTo p)
 
 -- --------------------
 
@@ -105,10 +96,10 @@ solve1 =
 
 solve2 :: Input -> Output
 solve2 ms12 =
-  S.findMin $ S.map (lengthTo2 ps12) cross
+  S.findMin $ S.map (flip lengthTo2 ps12) cross
   where
-    ps12  = both movesToPath  ms12
-    cross = path2Intersection ps12
+    ps12   = both movesToPath  ms12
+    cross  = path2Intersection ps12
 
 fromString :: String -> Input
 fromString xs =
@@ -134,6 +125,7 @@ res1
   , res10, res11, res12
   , res2
   , res20, res21, res22 :: Output
+
 res1  = 260
 res10 = 6
 res11 = 159
