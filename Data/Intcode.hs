@@ -8,6 +8,7 @@ module Data.Intcode
   , Stdout
   , runIntcode
   , runIntcode'
+  , runIntcode2
   , runIntcodeProg
   , fromCVS
   , patchIntcode
