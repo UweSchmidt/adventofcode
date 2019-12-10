@@ -225,7 +225,7 @@ trClosure =
     step r = r `union` (r `comp` r)
 
     fixpoint (x1 : xs@(x2 : _))
-      | x1 == x2 = x1
+      | x1 == x2  = x1
       | otherwise = fixpoint xs
 
 reflex :: Ord a => Rel' a -> Rel' a
