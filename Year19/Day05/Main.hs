@@ -5,11 +5,10 @@
 module Main where
 
 import Util.Main1 (main12)
-import Data.Intcode {- ( IntcodeProg
+import Data.Intcode ( IntcodeProg
                     , runIntcode2
-                    , patchIntcode
                     , fromCVS
-                    ) -}
+                    )
 
 -- ----------------------------------------
 
@@ -27,18 +26,20 @@ captcha2 = toString . solve2 . fromString
 type Input  = IntcodeProg
 type Output = Either String Int
 
-solve1 :: Input -> Output
-solve1 p
+solve :: Int -> Input -> Output
+solve i p
   | not . null $ e                   = Left e
   | not . all (== 0) . drop 1 $ outp = Left ("diagnostics: " ++ show outp)
   | null outp                        = Left "no result"
   | otherwise                        = Right $ head outp
   where
-    inp = [1]
-    ((e, _p), (_inp, outp)) = runIntcode2 inp p
+    ((e, _p), (_inp, outp)) = runIntcode2 [i] p
+
+solve1 :: Input -> Output
+solve1 = solve 1
 
 solve2 :: Input -> Output
-solve2 = undefined
+solve2 = solve 5
 
 fromString :: String -> Input
 fromString = fromCVS
@@ -53,6 +54,6 @@ inp = "3,225,1,225,6,6,1100,1,238,225,104,0,2,171,209,224,1001,224,-1040,224,4,2
 
 res1, res2 :: Int
 res1 = 9006673
-res2 = undefined
+res2 = 3629692
 
 -- ----------------------------------------
