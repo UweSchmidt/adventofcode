@@ -74,6 +74,8 @@ transPath obs src dst =
 -- consistency check of orbit relation
 -- rel must represent a tree: single root "COM" and
 -- at most a single predecessor
+--
+-- consistency check takes most of the time
 
 toOrbits :: Input -> Orbits
 toOrbits os
@@ -100,15 +102,43 @@ singleRoot obs =
   where
     com = R.roots obs
 
+reachableSeq :: Orbits -> ObjSet -> [ObjSet]
+reachableSeq obs = iterate gen
+  where
+    gen os = R.applyS obs os `S.difference` os
+
+distance :: Orbits -> Obj -> Obj -> Maybe Int
+distance obs src dst = lookup $ gens
+  where
+    gens = zip [0..] $ reachableSeq obs $ S.singleton src
+
+    lookup :: [(Int, ObjSet)] -> Maybe Int
+    lookup ((n, os) : gs)
+      | S.null os = Nothing
+      | dst `S.member` os = Just n
+      | otherwise = lookup gs
+
 -- --------------------
 
 solve1 :: Input -> Output
 solve1 = noOfOrbits . toOrbits
 
+-- find paths from YOU and SAN to COM
+-- remove common prefixes and add both length
+-- works with inverted relation
+
 solve2 :: Input -> Output
 solve2 os = transPathLen obs "YOU" "SAN"
   where
     obs = R.invert . toOrbits $ os
+
+-- find shortest path length from YOU to SAN
+-- works with symmetric relation (undirected graph)
+
+solve2' :: Input -> Output
+solve2' os = maybe (-1) (\ x -> x - 2) $ distance obs "YOU" "SAN"
+  where
+    obs = R.symmetric . toOrbits $ os
 
 fromString :: String -> Input
 fromString =
