@@ -6,7 +6,6 @@ module Main where
 
 import Util.Main1 (main12)
 import Data.Intcode ( IntcodeProg
-                    -- , IntcodeRes
                     , runIntcode
                     , patchIntcode
                     , fromCVS

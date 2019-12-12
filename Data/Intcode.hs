@@ -6,10 +6,21 @@ module Data.Intcode
   , IntcodeRes
   , Stdin
   , Stdout
+  , Status(..)
+
+  , pc
+  , mem
+  , status
+  , stdin
+  , stdout
+
   , runIntcode
-  , runIntcode'
   , runIntcode2
-  , runIntcodeProg
+
+  , mkMachine
+  , runMachine
+  , hasTerminated
+
   , fromCVS
   , patchIntcode
   )
@@ -22,6 +33,8 @@ import           Control.Monad.State.Strict
 
 import qualified Data.IntMap.Strict as M
 import           Data.IntMap.Strict (IntMap)
+
+import Debug.Trace
 
 -- ----------------------------------------
 
@@ -41,14 +54,17 @@ data Opcode      = Add | Mul
 data ParamMode   = PositionMode | ImmediateMode
 type Instr       = (Opcode, (ParamMode, ParamMode, ParamMode))
 
+data Status      = OK | Terminated | WaitForInput | OutputWritten | Exc String
+
 data ICState' m  = ICS { _pc     :: Int
+                       , _status :: Status
                        , _mem    :: m
                        , _stdin  :: [Int]
                        , _stdout :: [Int]
                        }
 type ICState     = ICState' Mem
 
-type Action      = ExceptT String (State ICState)
+type Action      = ExceptT Status (State ICState)
 
 deriving instance Show Opcode
 deriving instance Enum Opcode
@@ -57,6 +73,8 @@ deriving instance Show ParamMode
 deriving instance Enum ParamMode
 deriving instance Show a => Show (ICState' a)
 deriving instance Functor ICState'
+deriving instance Eq   Status
+deriving instance Show Status
 
 -- --------------------
 --
@@ -64,6 +82,9 @@ deriving instance Functor ICState'
 
 pc :: Lens' ICState Int
 pc k ics = (\new -> ics {_pc = new}) <$> k (_pc ics)
+
+status :: Lens' ICState Status
+status k ics = (\new -> ics {_status = new}) <$> k (_status ics)
 
 mem :: Lens' ICState Mem
 mem k ics = (\new -> ics {_mem = new}) <$> k (_mem ics)
@@ -77,48 +98,83 @@ stdout k ics = (\new -> ics {_stdout = new}) <$> k (_stdout ics)
 -- --------------------
 --
 -- run the machine
+--
+-- too many run functions
 
 runIntcode :: IntcodeProg -> IntcodeRes
 runIntcode p =
-  either Left (const $ Right $ head . M.elems $ _mem r) e
+  either (Left . show) (const $ Right . head . M.elems $ ics ^. mem) res
   where
-    (e, r) = runIntcodeProg p
-
-runIntcode' :: IntcodeProg -> (String, IntcodeProg)
-runIntcode' p =
-  either id (const mempty) *** (M.elems . _mem) $ runIntcodeProg p
+    res = hasTerminated ics
+    ics = runMachine $ mkMachine [] p
 
 runIntcode2 :: Stdin -> IntcodeProg -> IntcodeRes2
-runIntcode2 inp p = toRes $ runIntcodeProgStdin inp p
+runIntcode2 inp p = res
   where
-    toRes (e, s) = ( ( either id (const "") e
-                     , s ^.  mem . to M.elems
-                     )
-                   , ( s ^. stdin
-                     , s ^. stdout
-                     )
-                   )
+    ics = runMachine $ mkMachine inp p
+    chk = hasTerminated ics
+    res = ( ( either show (const "") chk
+            , ics ^.  mem . to M.elems
+            )
+          , ( ics ^. stdin
+            , ics ^. stdout
+            )
+          )
 
-runIntcodeProg :: IntcodeProg -> (Either String (), ICState)
-runIntcodeProg = runIntcodeProgStdin []
+-- ----------------------------------------
+--
+-- just for testing
 
-runIntcodeProgStdin :: Stdin -> IntcodeProg -> (Either String (), ICState)
-runIntcodeProgStdin inp p =
-  runState (runExceptT runProg) (initState inp p)
+runIntcode' :: IntcodeProg -> (String, IntcodeProg)
+runIntcode' = fst . runIntcode2 []
+
+-- --------------------
 
 progToMem :: IntcodeProg -> Mem
 progToMem = M.fromList . zip [0..]
 
-initState :: Stdin -> IntcodeProg -> ICState
-initState inp p = ICS 0 (progToMem p) inp []
+mkMachine :: Stdin -> IntcodeProg -> ICState
+mkMachine inp p = ICS 0 OK (progToMem p) inp []
+
+hasTerminated :: ICState -> Either Status Stdout
+hasTerminated ics =
+  case ics ^. status of
+    Terminated -> Right $ ics ^. stdout
+    _          -> Left  $ ics ^. status
+
+
+-- runs until output written, input missing, or halt
+runMachine0 :: ICState -> ICState
+runMachine0 = snd . runState (runExceptT runProg)
+
+-- continues running after output
+runMachine :: ICState -> ICState
+runMachine ics0
+  | ics1 ^. status == OutputWritten = runMachine (ics1 & status .~ OK)
+  | otherwise                       = ics1
+  where
+    ics1 = runMachine0 ics0
+
+-- lazy output list
+runMachine' :: ICState -> [Int]
+runMachine' ics0
+  | ics1 ^. status == OutputWritten = ics1 ^. stdout ++ runMachine' ics2
+  | otherwise                       = ics1 ^. stdout
+  where
+    ics1 = runMachine ics0
+    ics2 = ics1 & stdout .~ []
+                & status .~ OK
 
 -- ----------------------------------------
 
 runProg :: Action ()
 runProg = do
-  ins <- getInstr
-  unless (ins ^. _1 . to haltOp) $
-    execInstr ins >> runProg
+  cont <- statusOK
+  when cont $ do
+    ins <- getInstr
+    -- traceShowM ins
+    execInstr ins `catchError` (status .=)
+    runProg
 
 execInstr :: Instr -> Action ()
 execInstr (op, (pm1, pm2, pm3))
@@ -134,10 +190,15 @@ execInstr (op, (pm1, pm2, pm3))
                         pc .= pc'
 
   | op == Input  = do v <- getInput
+                      traceShowM ("input:  ", v)
                       putParam pm1 v
 
   | op == Output = do v <- getParam pm1
+                      traceShowM ("output: ", v)
                       putOut v
+                      outputWritten
+
+  | op == Halt   = status .= Terminated
 
   | otherwise    = return ()
 
@@ -160,6 +221,12 @@ branchOp op = lookup op branchOps
                 , (JumpFalse, (== 0))
                 ]
 
+statusOK :: Action Bool
+statusOK = do s <- use status
+              return $ case s of
+                         OK -> True
+                         _  -> False
+
 incrPc :: Action ()
 incrPc = pc %= (+1)
 
@@ -172,7 +239,7 @@ getInput = do
     _      -> endOfInput
 
 putOut :: Int -> Action ()
-putOut v = stdout %= (v :)
+putOut v = stdout %= (++ [v])
 
 putVal :: Int -> Addr -> Action ()
 putVal v a = do
@@ -230,23 +297,26 @@ decodePM i
 
 illegalOpcode :: Int -> Action a
 illegalOpcode op =
-  throwError $
+  throwError . Exc $
     "illegal opcode " ++ show op
 
 illegalParamMode :: Int -> Action a
 illegalParamMode pm =
-  throwError $
+  throwError . Exc $
     "illegal param mode " ++ show pm
 
 addressViolation :: Int -> Action a
 addressViolation a = do
   m <- use mem
   let mx = maybe 0 fst $ M.lookupMax m
-  throwError $
+  throwError . Exc $
     "address violation: 0 <= pc <= " ++ show mx ++ ", but pc = " ++ show a
 
 endOfInput :: Action a
-endOfInput = throwError "end of input"
+endOfInput = throwError WaitForInput
+
+outputWritten :: Action a
+outputWritten = throwError OutputWritten
 
 -- ----------------------------------------
 

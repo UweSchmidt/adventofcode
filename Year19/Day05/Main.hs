@@ -6,9 +6,14 @@ module Main where
 
 import Util.Main1 (main12)
 import Data.Intcode ( IntcodeProg
-                    , runIntcode2
+                    , runMachine
+                    , mkMachine
+                    , hasTerminated
+                    , status
+                    , stdout
                     , fromCVS
                     )
+import Control.Lens
 
 -- ----------------------------------------
 
@@ -27,13 +32,14 @@ type Input  = IntcodeProg
 type Output = Either String Int
 
 solve :: Int -> Input -> Output
-solve i p
-  | not . null $ e                   = Left e
-  | not . all (== 0) . drop 1 $ outp = Left ("diagnostics: " ++ show outp)
-  | null outp                        = Left "no result"
-  | otherwise                        = Right $ head outp
-  where
-    ((e, _p), (_inp, outp)) = runIntcode2 [i] p
+solve i p =
+  case hasTerminated . runMachine $ mkMachine [i] p of
+    Left  stat      -> Left $ show stat
+    Right outp
+      | not . all (== 0) . drop 1 . reverse $ outp
+                    -> Left ("diagnostics: " ++ show outp)
+      | null outp   -> Left "no result"
+      | otherwise   -> Right $ last outp
 
 solve1 :: Input -> Output
 solve1 = solve 1
