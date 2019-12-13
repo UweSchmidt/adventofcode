@@ -8,33 +8,26 @@ module Data.Intcode
   , Stdout
   , Status(..)
 
-  , pc
-  , mem
-  , status
-  , stdin
-  , stdout
-
   , runIntcode
   , runIntcode2
+  , runIntcode2'
 
   , mkMachine
-  , runMachine
-  , hasTerminated
+  , mkMachine'
 
   , fromCVS
   , patchIntcode
   )
 where
 
-import           Control.Arrow ((***))
-import           Control.Lens hiding (op)
+import           Control.Lens               hiding (op)
 import           Control.Monad.Except
 import           Control.Monad.State.Strict
+import           Data.IntMap.Strict (IntMap)
+import           Debug.Trace
 
 import qualified Data.IntMap.Strict as M
-import           Data.IntMap.Strict (IntMap)
 
-import Debug.Trace
 
 -- ----------------------------------------
 
@@ -61,10 +54,11 @@ data ICState' m  = ICS { _pc     :: Int
                        , _mem    :: m
                        , _stdin  :: [Int]
                        , _stdout :: [Int]
+                       , _cpuid  :: Int
                        }
 type ICState     = ICState' Mem
 
-type Action      = ExceptT Status (State ICState)
+type Action      = ExceptT () (State ICState)
 
 deriving instance Show Opcode
 deriving instance Enum Opcode
@@ -95,6 +89,9 @@ stdin k ics = (\new -> ics {_stdin = new}) <$> k (_stdin ics)
 stdout :: Lens' ICState [Int]
 stdout k ics = (\new -> ics {_stdout = new}) <$> k (_stdout ics)
 
+cpuid :: Lens' ICState Int
+cpuid k ics = (\new -> ics {_cpuid = new}) <$> k (_cpuid ics)
+
 -- --------------------
 --
 -- run the machine
@@ -121,6 +118,9 @@ runIntcode2 inp p = res
             )
           )
 
+runIntcode2' :: Int -> Stdin -> IntcodeProg -> Stdout
+runIntcode2' cpu inp p = runMachine' $ mkMachine' cpu inp p
+
 -- ----------------------------------------
 --
 -- just for testing
@@ -134,7 +134,10 @@ progToMem :: IntcodeProg -> Mem
 progToMem = M.fromList . zip [0..]
 
 mkMachine :: Stdin -> IntcodeProg -> ICState
-mkMachine inp p = ICS 0 OK (progToMem p) inp []
+mkMachine inp p = ICS 0 OK (progToMem p) inp [] 42
+
+mkMachine' :: Int -> Stdin -> IntcodeProg -> ICState
+mkMachine' cpu inp p = ICS 0 OK (progToMem p) inp [] cpu
 
 hasTerminated :: ICState -> Either Status Stdout
 hasTerminated ics =
@@ -143,11 +146,16 @@ hasTerminated ics =
     _          -> Left  $ ics ^. status
 
 
--- runs until output written, input missing, or halt
+-- runs until output written, input missing, halt or fault
 runMachine0 :: ICState -> ICState
 runMachine0 = snd . runState (runExceptT runProg)
 
--- continues running after output
+
+-- like runMachine0 but no halt after output
+-- no lazy result list
+-- structure like foldl
+-- does not work with feedback loop (day 7 part 2)
+
 runMachine :: ICState -> ICState
 runMachine ics0
   | ics1 ^. status == OutputWritten = runMachine (ics1 & status .~ OK)
@@ -155,26 +163,60 @@ runMachine ics0
   where
     ics1 = runMachine0 ics0
 
--- lazy output list
+
+-- like runMachine
+-- but lazy output list
+-- structure like a foldr
+
 runMachine' :: ICState -> [Int]
 runMachine' ics0
   | ics1 ^. status == OutputWritten = ics1 ^. stdout ++ runMachine' ics2
   | otherwise                       = ics1 ^. stdout
   where
-    ics1 = runMachine ics0
+    ics1 = runMachine0 ics0
     ics2 = ics1 & stdout .~ []
                 & status .~ OK
 
 -- ----------------------------------------
 
+withTrace :: Bool
+-- withTrace = True
+withTrace = False
+
+traceMachine :: String-> Action ()
+traceMachine msg = when withTrace $ do
+  cpu <- use cpuid
+  pc' <- use pc
+  trace (show cpu ++ ": " ++ show pc' ++ ": " ++ msg) $ return ()
+
+traceMState :: String -> Action ()
+traceMState msg = do
+  st  <- show <$> use status
+  -- inp <- show . take 1 <$> use stdin
+  -- oup <- show <$> use stdout
+  -- mem <- show . M.elems <$> use mem
+  traceMachine $
+    msg ++
+    " status=" ++ st  ++
+    -- " stdin="  ++ inp ++  -- no input output trace please !!!
+    -- " stdout=" ++ oup ++  -- that makes functions strict in I/O
+    -- " mem="    ++ mem ++
+    ""
+
 runProg :: Action ()
 runProg = do
+  traceMState "(re)start:  "
+  runProg'
+  traceMState "terminated: "
+
+runProg' :: Action ()
+runProg' = do
   cont <- statusOK
   when cont $ do
-    ins <- getInstr
-    -- traceShowM ins
-    execInstr ins `catchError` (status .=)
-    runProg
+    do ins <- getInstr
+       execInstr ins
+         `catchError` (\ () -> traceMachine $ "abort ")
+       runProg'
 
 execInstr :: Instr -> Action ()
 execInstr (op, (pm1, pm2, pm3))
@@ -190,20 +232,18 @@ execInstr (op, (pm1, pm2, pm3))
                         pc .= pc'
 
   | op == Input  = do v <- getInput
-                      traceShowM ("input:  ", v)
                       putParam pm1 v
+                      traceMachine $ "input:  " ++ show v
 
   | op == Output = do v <- getParam pm1
-                      traceShowM ("output: ", v)
                       putOut v
+                      traceMachine $ "output: " ++ show v
                       outputWritten
 
-  | op == Halt   = status .= Terminated
+  | op == Halt   = do status .= Terminated
+                      traceMachine $ "halt"
 
   | otherwise    = return ()
-
-haltOp :: Opcode -> Bool
-haltOp = (== Halt)
 
 binOp :: Opcode -> Maybe (Int -> Int -> Int)
 binOp op = lookup op binOps
@@ -295,28 +335,33 @@ decodePM i
   | not (i == 0 || i == 1) = illegalParamMode i
   | otherwise              = return $ toEnum i
 
+abort :: Status -> Action a
+abort err = do
+  status .= err
+  throwError ()
+
 illegalOpcode :: Int -> Action a
 illegalOpcode op =
-  throwError . Exc $
+  abort . Exc $
     "illegal opcode " ++ show op
 
 illegalParamMode :: Int -> Action a
 illegalParamMode pm =
-  throwError . Exc $
+  abort . Exc $
     "illegal param mode " ++ show pm
 
 addressViolation :: Int -> Action a
 addressViolation a = do
   m <- use mem
   let mx = maybe 0 fst $ M.lookupMax m
-  throwError . Exc $
+  abort . Exc $
     "address violation: 0 <= pc <= " ++ show mx ++ ", but pc = " ++ show a
 
 endOfInput :: Action a
-endOfInput = throwError WaitForInput
+endOfInput = abort WaitForInput
 
 outputWritten :: Action a
-outputWritten = throwError OutputWritten
+outputWritten = abort OutputWritten
 
 -- ----------------------------------------
 

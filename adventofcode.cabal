@@ -1,7 +1,7 @@
 name:                adventofcode
-version:             0.1.0.0
--- synopsis:
--- description:
+version:             0.2019.0.7
+synopsis:            adventofcode solutions
+description:         Some solutions of adventofcode 2017, 2018 and 2019
 homepage:            https://github.com/UweSchmidt/apps/toys/adventofcode.com
 license:             BSD3
 license-file:        LICENSE
