@@ -9,6 +9,7 @@ module Data.Intcode
   , Status(..)
 
   , runIntcode
+  , runIntcode'
   , runIntcode2
   , runIntcode2'
 
@@ -16,6 +17,7 @@ module Data.Intcode
   , mkMachine'
 
   , runMachine
+  -- , runMachine'
   , hasTerminated
 
   , fromCVS
@@ -42,36 +44,42 @@ type Stdout      = [Int]
 
 type Mem         = IntMap Int
 type Addr        = Int
-data Opcode      = Add | Mul
-                 | Input | Output
-                 | JumpTrue | JumpFalse
-                 | LessThan | Equals
+data Opcode      = Add        | Mul
+                 | Input      | Output
+                 | JumpTrue   | JumpFalse
+                 | LessThan   | Equals
+                 | AdjustBase
                  | Halt
-data ParamMode   = PositionMode | ImmediateMode
+data ParamMode   = PositionMode | ImmediateMode | RelativeMode
 type Instr       = (Opcode, (ParamMode, ParamMode, ParamMode))
 
 data Status      = OK | Terminated | WaitForInput | OutputWritten | Exc String
 
 data ICState' m  = ICS { _pc     :: Int
                        , _status :: Status
+                       , _base   :: Int
                        , _mem    :: m
                        , _stdin  :: [Int]
                        , _stdout :: [Int]
-                       , _cpuid  :: Int
+                       , _cpuid  :: Int    -- for debugging
                        }
 type ICState     = ICState' Mem
 
 type Action      = ExceptT () (State ICState)
 
-deriving instance Show Opcode
-deriving instance Enum Opcode
-deriving instance Eq   Opcode
-deriving instance Show ParamMode
-deriving instance Enum ParamMode
+deriving instance Show    Opcode
+deriving instance Enum    Opcode
+deriving instance Eq      Opcode
+
+deriving instance Show    ParamMode
+deriving instance Enum    ParamMode
+deriving instance Bounded ParamMode
+
+deriving instance Eq      Status
+deriving instance Show    Status
+
 deriving instance Show a => Show (ICState' a)
 deriving instance Functor ICState'
-deriving instance Eq   Status
-deriving instance Show Status
 
 -- --------------------
 --
@@ -82,6 +90,9 @@ pc k ics = (\new -> ics {_pc = new}) <$> k (_pc ics)
 
 status :: Lens' ICState Status
 status k ics = (\new -> ics {_status = new}) <$> k (_status ics)
+
+base :: Lens' ICState Int
+base k ics = (\new -> ics {_base = new}) <$> k (_base ics)
 
 mem :: Lens' ICState Mem
 mem k ics = (\new -> ics {_mem = new}) <$> k (_mem ics)
@@ -137,10 +148,10 @@ progToMem :: IntcodeProg -> Mem
 progToMem = M.fromList . zip [0..]
 
 mkMachine :: Stdin -> IntcodeProg -> ICState
-mkMachine inp p = ICS 0 OK (progToMem p) inp [] 42
+mkMachine = mkMachine' 42
 
 mkMachine' :: Int -> Stdin -> IntcodeProg -> ICState
-mkMachine' cpu inp p = ICS 0 OK (progToMem p) inp [] cpu
+mkMachine' cpu inp p = ICS 0 OK 0 (progToMem p) inp [] cpu
 
 hasTerminated :: ICState -> Either Status Stdout
 hasTerminated ics =
@@ -195,13 +206,15 @@ traceMachine msg = when withTrace $ do
 traceMState :: String -> Action ()
 traceMState msg = do
   st  <- show <$> use status
+  bs  <- show <$> use base
   -- inp <- show . take 1 <$> use stdin
   -- oup <- show <$> use stdout
   -- mem <- show . M.elems <$> use mem
   traceMachine $
     msg ++
     " status=" ++ st  ++
-    -- " stdin="  ++ inp ++  -- no input output trace please !!!
+    " base="   ++ bs  ++
+    -- " stdin="  ++ inp ++  -- NO input output TRACE please !!!
     -- " stdout=" ++ oup ++  -- that makes functions strict in I/O
     -- " mem="    ++ mem ++
     ""
@@ -217,6 +230,7 @@ runProg' = do
   cont <- statusOK
   when cont $ do
     do ins <- getInstr
+       -- traceMachine (show ins)
        execInstr ins
          `catchError` (\ () -> traceMachine $ "abort ")
        runProg'
@@ -224,29 +238,33 @@ runProg' = do
 execInstr :: Instr -> Action ()
 execInstr (op, (pm1, pm2, pm3))
   | Just f <- binOp op
-                 = do v1 <- getParam pm1
-                      v2 <- getParam pm2
-                      putParam pm3 (f v1 v2)
+                     = do v1 <- getParam pm1
+                          v2 <- getParam pm2
+                          putParam pm3 (f v1 v2)
 
   | Just p <- branchOp op
-                 = do v   <- getParam pm1
-                      pc' <- getParam pm2
-                      when (p v) $
-                        pc .= pc'
+                     = do v   <- getParam pm1
+                          pc' <- getParam pm2
+                          when (p v) $
+                            pc .= pc'
 
-  | op == Input  = do v <- getInput
-                      putParam pm1 v
-                      traceMachine $ "input:  " ++ show v
+  | Input <- op      = do v <- getInput
+                          putParam pm1 v
+                          traceMachine $ "input:  " ++ show v
 
-  | op == Output = do v <- getParam pm1
-                      putOut v
-                      traceMachine $ "output: " ++ show v
-                      outputWritten
+  | Output <- op     = do v <- getParam pm1
+                          putOut v
+                          traceMachine $ "output: " ++ show v
+                          outputWritten
 
-  | op == Halt   = do status .= Terminated
-                      traceMachine $ "halt"
+  | AdjustBase <- op = do v <- getParam pm1
+                          base %= (+ v)
+                          traceMState "adjustbase"
 
-  | otherwise    = return ()
+  | Halt <- op       = do status .= Terminated
+                          traceMachine $ "halt"
+
+  | otherwise        = return ()
 
 binOp :: Opcode -> Maybe (Int -> Int -> Int)
 binOp op = lookup op binOps
@@ -286,13 +304,16 @@ putOut v = stdout %= (++ [v])
 
 putVal :: Int -> Addr -> Action ()
 putVal v a = do
-  void (getVal a)    -- check for address violation
-  mem . at a .= Just v
+  unless (a >= 0) $
+    addressViolation a
+  mem . at a .= Just v    -- values may be written in the middle of nowhere
 
 getVal :: Int -> Action Int
 getVal a = do
+  unless (a >= 0) $
+    addressViolation a
   v <- use (mem . at a)
-  maybe (addressViolation a) return v
+  return $ maybe 0 id v   -- readin uninitialized mem results 0 values
 
 getAddr :: Action Int
 getAddr = use pc >>= getVal
@@ -303,13 +324,19 @@ getArg = do
   incrPc
   return v
 
+getBaseRel :: Action Int
+getBaseRel = do bs     <- use base
+                offset <- getArg
+                return (bs + offset)
+
 getParam :: ParamMode -> Action Int
-getParam PositionMode  = getArg >>= getVal
+getParam PositionMode  = getArg     >>= getVal
 getParam ImmediateMode = getArg
+getParam RelativeMode  = getBaseRel >>= getVal
 
 putParam :: ParamMode -> Int -> Action ()
-putParam PositionMode v = do a <- getArg
-                             putVal v a
+putParam PositionMode v = getArg     >>= putVal v
+putParam RelativeMode v = getBaseRel >>= putVal v
 putParam pm           _ = illegalParamMode $ fromEnum pm
 
 getInstr :: Action Instr
@@ -335,8 +362,13 @@ decodeOp i
 
 decodePM :: Int -> Action ParamMode
 decodePM i
-  | not (i == 0 || i == 1) = illegalParamMode i
-  | otherwise              = return $ toEnum i
+  | fromEnum lb <= i
+    &&
+    i <= fromEnum ub  = return $ toEnum i
+  | otherwise         = illegalParamMode i
+  where
+    lb = minBound :: ParamMode
+    ub = maxBound :: ParamMode
 
 abort :: Status -> Action a
 abort err = do
@@ -395,6 +427,24 @@ ex9 = fromCVS "3,3,1107,-1,8,3,4,3,99"
 ex10 = fromCVS "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9"
 ex11 = fromCVS "3,3,1105,-1,9,1101,0,0,12,4,12,99,1"
 ex12 = fromCVS "3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99"
+
+-- day 9: relative base added, mem is virtually of size 2^63 cells
+ex20 :: String
+ex20 = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99"
+ex21 = "1102,34915192,34915192,7,4,7,99,0"
+ex22 = "104,1125899906842624,99"
+
+rs20 :: [Int]
+rs20 = fromCVS ex20
+
+rs21, rs22 :: Int
+rs21 = 16
+rs22 = fromCVS ex22 !! 1
+
+test20, test21 :: Bool
+test20 = (runMachine' $ mkMachine [] (fromCVS ex20)) == rs20
+test21 = (length . show . head . runMachine' $ mkMachine [] (fromCVS ex21)) == 16
+test22 = (runMachine' $ mkMachine [] (fromCVS ex22)) == [rs22]
 
 -- --------------------
 
