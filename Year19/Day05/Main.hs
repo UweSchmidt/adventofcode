@@ -9,11 +9,8 @@ import Data.Intcode ( IntcodeProg
                     , runMachine
                     , mkMachine
                     , hasTerminated
-                    , status
-                    , stdout
                     , fromCVS
                     )
-import Control.Lens
 
 -- ----------------------------------------
 

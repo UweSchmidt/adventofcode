@@ -15,6 +15,9 @@ module Data.Intcode
   , mkMachine
   , mkMachine'
 
+  , runMachine
+  , hasTerminated
+
   , fromCVS
   , patchIntcode
   )
