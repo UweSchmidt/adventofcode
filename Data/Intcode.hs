@@ -297,7 +297,8 @@ getInput = do
   case inp of
     x : xs -> do stdin .= xs
                  return x
-    _      -> endOfInput
+    _      -> do pc %= (\ x -> x - 1)   -- reset pc to enable restart
+                 endOfInput             -- with further input
 
 putOut :: Int -> Action ()
 putOut v = stdout %= (++ [v])
@@ -306,7 +307,7 @@ putVal :: Int -> Addr -> Action ()
 putVal v a = do
   unless (a >= 0) $
     addressViolation a
-  mem . at a .= Just v    -- values may be written in the middle of nowhere
+  mem . at a .= Just v    -- values may be written into the middle of nowhere
 
 getVal :: Int -> Action Int
 getVal a = do
