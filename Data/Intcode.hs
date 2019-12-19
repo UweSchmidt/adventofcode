@@ -4,9 +4,14 @@
 module Data.Intcode
   ( IntcodeProg
   , IntcodeRes
+  , ICState
   , Stdin
   , Stdout
   , Status(..)
+
+  , status
+  , stdin
+  , stdout
 
   , runIntcode
   , runIntcode'
@@ -17,6 +22,7 @@ module Data.Intcode
   , mkMachine'
 
   , runMachine
+  , runMachine0
   -- , runMachine'
   , hasTerminated
 
@@ -162,7 +168,8 @@ hasTerminated ics =
 
 -- runs until output written, input missing, halt or fault
 runMachine0 :: ICState -> ICState
-runMachine0 = snd . runState (runExceptT runProg)
+runMachine0 ics =
+  snd . runState (runExceptT runProg) $ (ics & status .~ OK)
 
 
 -- like runMachine0 but no halt after output
@@ -262,6 +269,7 @@ execInstr (op, (pm1, pm2, pm3))
                           traceMState "adjustbase"
 
   | Halt <- op       = do status .= Terminated
+                          relJump (-1)     -- reset ps to terminate after restart
                           traceMachine $ "halt"
 
   | otherwise        = return ()
@@ -289,7 +297,10 @@ statusOK = do s <- use status
                          _  -> False
 
 incrPc :: Action ()
-incrPc = pc %= (+1)
+incrPc = relJump 1
+
+relJump :: Int -> Action ()
+relJump disp = pc %= (+ disp)
 
 getInput :: Action Int
 getInput = do
@@ -297,7 +308,7 @@ getInput = do
   case inp of
     x : xs -> do stdin .= xs
                  return x
-    _      -> do pc %= (\ x -> x - 1)   -- reset pc to enable restart
+    _      -> do relJump (-1)           -- reset pc to enable restart
                  endOfInput             -- with further input
 
 putOut :: Int -> Action ()
