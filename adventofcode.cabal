@@ -675,6 +675,8 @@ executable 2019-12
                        
   build-depends:       base >= 4.7 && < 5
                      , containers
+                     , hashable
+                     , unordered-containers
                      , lens
                      , megaparsec
                      , optparse-applicative
