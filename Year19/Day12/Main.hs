@@ -4,25 +4,19 @@
 {-# LANGUAGE StandaloneDeriving #-}
 
 -- solution for
--- http://adventofcode.com/2019/day/11
-
+-- http://adventofcode.com/2019/day/12
 
 module Main where
 
-import Util.Main1 (main12)
-
-import Control.Arrow        ((>>>), (***), second)
-import Control.Lens
+import AOC.Prelude
 import Data.Hashable
-import Text.Megaparsec
-import Text.Megaparsec.Char (digitChar, string, space)
 
 import qualified Data.HashMap.Strict as M
 
 -- ----------------------------------------
 
 main :: IO ()
-main = main12 "2019-11"
+main = main12 "2019-12"
        inp captcha1
        inp captcha2
 
@@ -167,8 +161,6 @@ instance Num a => Num (P3 a) where
   fromInteger = pure . fromInteger
 
 -- --------------------
-
-type Parser a = Parsec String String a
 
 parseInp :: String -> Moons
 parseInp cs =

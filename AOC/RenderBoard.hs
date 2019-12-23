@@ -1,4 +1,4 @@
-module Util.RenderBoard
+module AOC.RenderBoard
   ( renderBoard )
 where
 

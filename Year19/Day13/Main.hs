@@ -10,8 +10,7 @@
 
 module Main where
 
-import Util.Main1       ( main12 )
-import Util.RenderBoard ( renderBoard )
+import AOC.Prelude
 import Data.Intcode     ( IntcodeProg
                         , ICState
                         , Status(..)
@@ -23,22 +22,13 @@ import Data.Intcode     ( IntcodeProg
                         , runMachine
                         , fromCVS
                         )
-import Control.Arrow    ( (>>>) )
-import Control.Lens hiding (Empty)
 
 import qualified Data.HashMap.Strict as M
-
-import Debug.Trace
 
 -- ----------------------------------------
 
 withTrace :: Bool
 withTrace = False
-
-trace' :: String -> a -> a
-trace' msg
-  | withTrace = trace msg
-  | otherwise = id
 
 -- --------------------
 
@@ -59,8 +49,8 @@ solve1 =
 
 solve2 :: IntcodeProg -> Int
 solve2 prog =
-  trace' (gsToStr gs0) $
-  trace' (gsToStr gs1) $
+  trace' withTrace (gsToStr gs0) $
+  trace' withTrace (gsToStr gs1) $
   gs1 ^. _2 . _1
   where
     (gs1, _ics1) = play gs0 ics0
@@ -69,7 +59,6 @@ solve2 prog =
 toPlay :: IntcodeProg -> IntcodeProg
 toPlay = (2 :) . drop 1
 
-type Pos       = (Int, Int)
 type Dir       = Ordering
 data Tile      = Empty | Wall | Block | Paddle | Ball
 type Score     = Int
@@ -81,9 +70,6 @@ type GameState = ((Screen, ((Pos, Dir), Pos)), (Score, Step))
 deriving instance Show Tile
 deriving instance Eq   Tile
 deriving instance Enum Tile
-
-origin :: Pos
-origin = (0,0)
 
 initScore :: Score
 initScore = 0
@@ -97,7 +83,7 @@ insertScreen' = M.insert
 insertScreen :: Pos -> Tile -> Screen -> Screen
 insertScreen p t !sc
   | t == Ball || t == Paddle =
-      trace' ("move " ++ show t ++ " to " ++ show p) $
+      trace' withTrace ("move " ++ show t ++ " to " ++ show p) $
       insertScreen' p t sc
   | otherwise =
       insertScreen' p t sc
@@ -146,7 +132,7 @@ gogs ts                _  = error $ "wrong tile seqence: " ++ show ts
 
 play :: GameState -> ICState -> (GameState, ICState)
 play gs ics =
-  -- trace' (gsToStr gs) $
+  trace' False (gsToStr gs) $
   play' gs ics
   where
 
@@ -222,24 +208,6 @@ renderScreen =
     toC Block  = '*'
     toC Paddle = '='
     toC Ball   = 'O'
-{-
-  map toRow [minY..maxY]
-  where
-    maxX = maximum . map fst . M.keys $ h
-    maxY = maximum . map snd . M.keys $ h
-    minX = minimum . map fst . M.keys $ h
-    minY = minimum . map snd . M.keys $ h
-
-    toRow y = map toChar [minX..maxX]
-      where
-        toChar x = toC $ lookupScreen (x, y) h
-          where
-            toC Empty  = '.'
-            toC Wall   = '#'
-            toC Block  = '*'
-            toC Paddle = '='
-            toC Ball   = 'O'
--}
 
 gsToStr :: GameState -> String
 gsToStr ((screen, ((ball, dir), paddle)), (score, steps)) =
