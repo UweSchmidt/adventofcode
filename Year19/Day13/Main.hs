@@ -10,22 +10,23 @@
 
 module Main where
 
-import Util.Main1     (main12)
-import Data.Intcode   ( IntcodeProg
-                      , ICState
-                      , Status(..)
-                      , status
-                      , stdin
-                      , stdout
-                      , mkMachine
-                      , runMachine0
-                      , runMachine
-                      , fromCVS
-                      )
-import Control.Arrow  ((>>>))
+import Util.Main1       ( main12 )
+import Util.RenderBoard ( renderBoard )
+import Data.Intcode     ( IntcodeProg
+                        , ICState
+                        , Status(..)
+                        , status
+                        , stdin
+                        , stdout
+                        , mkMachine
+                        , runMachine0
+                        , runMachine
+                        , fromCVS
+                        )
+import Control.Arrow    ( (>>>) )
 import Control.Lens hiding (Empty)
 
-import qualified Data.Map.Strict as M
+import qualified Data.HashMap.Strict as M
 
 import Debug.Trace
 
@@ -74,7 +75,7 @@ data Tile      = Empty | Wall | Block | Paddle | Ball
 type Score     = Int
 type Step      = Int
 type PosTile   = (Pos, Tile)
-type Screen    = M.Map Pos Tile
+type Screen    = M.HashMap Pos Tile
 type GameState = ((Screen, ((Pos, Dir), Pos)), (Score, Step))
 
 deriving instance Show Tile
@@ -213,7 +214,15 @@ step ics
 -- --------------------
 
 renderScreen :: Screen -> [String]
-renderScreen h =
+renderScreen =
+  renderBoard '.' toC
+  where
+    toC Empty  = '.'
+    toC Wall   = '#'
+    toC Block  = '*'
+    toC Paddle = '='
+    toC Ball   = 'O'
+{-
   map toRow [minY..maxY]
   where
     maxX = maximum . map fst . M.keys $ h
@@ -230,6 +239,7 @@ renderScreen h =
             toC Block  = '*'
             toC Paddle = '='
             toC Ball   = 'O'
+-}
 
 gsToStr :: GameState -> String
 gsToStr ((screen, ((ball, dir), paddle)), (score, steps)) =
