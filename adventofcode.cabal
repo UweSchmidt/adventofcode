@@ -733,7 +733,8 @@ executable 2019-14
   other-modules:       AOC.Main1
                        AOC.Prelude
                        AOC.RenderBoard
-                       
+                       Data.Relation
+                                              
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , lens

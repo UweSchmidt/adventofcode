@@ -7,6 +7,11 @@ module AOC.Prelude
   , module Control.Arrow
   , module Control.Lens
 
+  , module Data.Char
+  , module Data.Foldable
+  , module Data.List
+  , module Data.Maybe
+
   -- parser stuff
   , module Text.Megaparsec
   , module Text.Megaparsec.Char
@@ -17,7 +22,12 @@ module AOC.Prelude
 where
 
 import Control.Arrow    ( (>>>), (***), (&&&), first, second )
-import Control.Lens     hiding (Empty)
+import Control.Lens     hiding (Empty, uncons)
+
+import Data.Char
+import Data.Foldable
+import Data.List
+import Data.Maybe
 
 import Debug.Trace      ( trace )
 
@@ -50,6 +60,13 @@ rotate90CCW (x, y) = (-y, x)
 -- --------------------
 
 type Parser a = Parsec String String a
+
+parseInput :: Parser r -> String -> r
+parseInput p =
+  either (error . show) id . parse p "input"
+
+natural :: Parser Int
+natural = read <$> some (satisfy isDigit) <?> "number"
 
 -- --------------------
 
