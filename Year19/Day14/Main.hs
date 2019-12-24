@@ -1,7 +1,5 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE UnboxedTuples #-}
 
 -- solution for
@@ -37,15 +35,67 @@ captcha2 :: String -> String
 captcha2 = parseRules >>> solve2 >>> show
 
 solve1 :: Rules -> Int
-solve1 rules =
-  fromMaybe (-1) . fmap snd . listToMaybe . M.toList $ ore
-  where
-    dps = rulesToMatDeps rules
-    prs = toMatPrios dps $ S.singleton "ORE"
-    ore = reduceMat rules prs $ M.singleton "FUEL" 1
+solve1 rules = solve rules 1
 
 solve2 :: Rules -> Int
-solve2 rules = undefined
+solve2 rules =
+  fst . last . uncurry (zero f) $ lb'ub f
+  where
+    f x = solve rules x - trillion
+
+solve :: Rules -> Int -> Int
+solve rules amount =
+  reduce rules prios amount
+  where
+    dps   = rulesToMatDeps rules
+    prios = toMatPrios dps $ S.singleton "ORE"
+
+reduce :: Rules -> MatSeq -> Int -> Int
+reduce rules prios amount =
+  fromMaybe (-1) . fmap snd . listToMaybe . M.toList $ ore
+  where
+    ore = reduceMat rules prios $ M.singleton "FUEL" amount
+
+
+approx :: (Int -> Int) -> Int -> (Int, Int) -> (Int, Int) -> [(Int, Int)]
+approx f lim'f = go
+  where
+    go l@(lx, ly) u@(ux, uy)     -- inv: ly <= lim'f
+      | ux == lx + 1 = l : []
+      | uy <= lim'f  = l : go u (ux2, f ux2)
+      | otherwise    = undefined
+      where
+        ux2 = ux * 2
+
+zero :: (Int -> Int) -> (Int, Int) -> (Int, Int) -> [(Int, Int)]
+zero f = go
+  where
+    go p1@(x1, _y1) p2@(x2, _y2)
+      | x2 == x1 + 1 = p1  : []
+      | y12 >  0     = p12 : go p1 p12
+      | y12 <  0     = p12 : go p12 p2
+      | otherwise    = p12 : []
+      where
+        x12 = (x1 + x2) `div` 2
+        y12 = f x12
+        p12 = (x12, y12)
+
+-- search for a pair of points x1 and x2 with f x1 <= 0 and f x2 > 0
+
+lb'ub :: (Int -> Int) -> ((Int, Int), (Int,Int))
+lb'ub f
+  | y > 0     = error "function positive: f 1 > 0"
+  | otherwise = go p
+  where
+    p@(_x, y) = (1, f 1)
+
+    go p1@(x1, _y1)
+      | y2 > 0    = (p1, p2)
+      | otherwise = go p2
+      where
+        x2 = 2 * x1
+        y2 = f x2
+        p2 = (x2, y2)
 
 type Material   = String
 type Quantity   = (Material, Int)
@@ -62,6 +112,9 @@ fuel = M.singleton "FUEL" 1
 
 ores :: MatSet
 ores = S.singleton "ORE"
+
+trillion :: Int
+trillion = 1000000000000
 
 emptyQuantities :: Quantities
 emptyQuantities = M.empty
@@ -306,6 +359,6 @@ res1 :: Int
 res1 = 365768
 
 res2 :: Int
-res2 = undefined
+res2 = 3756877
 
 -- ----------------------------------------
