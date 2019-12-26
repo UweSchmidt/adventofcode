@@ -6,6 +6,8 @@ module AOC.Prelude
   -- access and modify
   , module Control.Arrow
   , module Control.Lens
+  , module Control.Monad.Except
+  , module Control.Monad.State.Strict
 
   , module Data.Char
   , module Data.Foldable
@@ -23,6 +25,8 @@ where
 
 import Control.Arrow    ( (>>>), (***), (&&&), first, second )
 import Control.Lens     hiding (Empty, uncons)
+import Control.Monad.Except
+import Control.Monad.State.Strict
 
 import Data.Char
 import Data.Foldable
@@ -31,7 +35,7 @@ import Data.Maybe
 
 import Debug.Trace      ( trace )
 
-import Text.Megaparsec  hiding (Pos, noneOf)
+import Text.Megaparsec  hiding (Pos, State, noneOf)
 import Text.Megaparsec.Char
 
 import AOC.Main1

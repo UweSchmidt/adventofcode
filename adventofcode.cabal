@@ -28,6 +28,7 @@ library
                      , containers
                      , lens
                      , megaparsec
+                     , mtl
                      , optparse-applicative
                      , unordered-containers
 
