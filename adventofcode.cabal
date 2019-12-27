@@ -2,7 +2,7 @@ name:                adventofcode
 version:             0.2019.0.7
 synopsis:            adventofcode solutions
 description:         Some solutions of adventofcode 2017, 2018 and 2019
-homepage:            https://github.com/UweSchmidt/apps/toys/adventofcode.com
+homepage:            https://github.com/UweSchmidt/adventofcode.com
 license:             BSD3
 license-file:        LICENSE
 author:              Uwe Schmidt
@@ -701,6 +701,7 @@ executable 2019-12
                      , hashable
                      , lens
                      , megaparsec
+                     , mtl
                      , optparse-applicative
                      , unordered-containers
                             
@@ -756,6 +757,25 @@ executable 2019-15
                        AOC.RenderBoard
                        Data.Intcode
                        
+  build-depends:       base >= 4.7 && < 5
+                     , containers
+                     , lens
+                     , megaparsec
+                     , mtl
+                     , optparse-applicative
+                     , unordered-containers
+                            
+  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
+  default-language:   Haskell2010
+
+executable 2019-16
+  main-is:             Year19/Day16/Main.hs
+  hs-source-dirs:      .
+  
+  other-modules:       AOC.Main1
+                       AOC.Prelude
+                       AOC.RenderBoard
+                                              
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , lens
