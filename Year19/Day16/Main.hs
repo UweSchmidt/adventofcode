@@ -10,9 +10,6 @@ module Main where
 
 import AOC.Prelude
 
-import qualified Data.HashMap.Strict as M
-import qualified Data.Set            as S
-
 -- ----------------------------------------
 
 withTrace :: Bool

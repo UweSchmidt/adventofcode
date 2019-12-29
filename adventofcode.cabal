@@ -23,7 +23,10 @@ library
   exposed-modules:     AOC.Main1
                        AOC.Prelude
                        AOC.RenderBoard
-
+                       Data.Graph
+                       Data.Grid
+                       Data.Relation
+                                              
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , lens
@@ -777,6 +780,7 @@ executable 2019-16
                        AOC.RenderBoard
                                               
   build-depends:       base >= 4.7 && < 5
+                     , adventofcode
                      , containers
                      , lens
                      , megaparsec
