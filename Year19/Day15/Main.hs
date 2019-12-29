@@ -293,11 +293,6 @@ stepM m ics0
 
 -- --------------------
 
-step :: Move -> ICState -> (MoveStat, ICState)
-step m ics0 = undefined
-
--- --------------------
-
 gsToString :: GameState -> String
 gsToString gs =
   unlines $

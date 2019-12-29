@@ -6,6 +6,8 @@ module Data.Grid
   , Move(..)
   , move
   , reachable
+  , turnCW
+  , turnCCW
 
   , Grid
   , mkGrid
@@ -52,6 +54,18 @@ move East  (x, y) = (x + 1, y)
 
 reachable :: Point -> [Point]
 reachable p = map (flip move p) [minBound .. maxBound]
+
+turnCCW :: Move -> Move
+turnCCW North = West
+turnCCW South = East
+turnCCW West  = South
+turnCCW East  = North
+
+turnCW :: Move -> Move
+turnCW North = East
+turnCW South = West
+turnCW West  = North
+turnCW East  = South
 
 -- ----------------------------------------
 

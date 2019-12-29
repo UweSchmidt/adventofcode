@@ -23,6 +23,7 @@ import Data.Intcode     ( IntcodeProg
                         )
 
 import Data.Grid
+import Data.List.Split
 
 -- ----------------------------------------
 
@@ -63,8 +64,24 @@ data Tile   = Scaffold  | ScaffoldX
 
 type Screen = Grid Tile
 
+data Cmd = L Int
+         | R Int
+
+data Macro = A Cmds
+           | B Cmds
+           | C Cmds
+
+type Cmds   = [Cmd]
+type Macros = [Macro]
+
 deriving instance Show Tile
 deriving instance Eq   Tile
+
+deriving instance Show Cmd
+deriving instance Eq   Cmd
+
+deriving instance Show Macro
+deriving instance Eq   Macro
 
 -- --------------------
 
@@ -80,11 +97,45 @@ filterIntersections sc =
       where
         ps = filter (== Scaffold) . map (flip lookupGrid sc) $ reachable p'
 
+-- for testing only
+
 markIntersections :: Screen -> Screen
 markIntersections sc =
   insertListGrid (map (, ScaffoldX) ps) sc
   where
     ps = filterIntersections sc
+
+-- --------------------
+--
+-- part 2
+
+getVacuumRobot :: Screen -> Maybe (Point, Move)
+getVacuumRobot sc
+  | [(p, VacuumRobot (Just m))] <- ps = Just (p, m)
+  | otherwise                         = Nothing
+  where
+    ps = elemsGrid $ filterGrid isVR sc
+
+    isVR _p' (VacuumRobot (Just _mv)) = True
+    isVR _   _                        = False
+
+drawPath :: Cmds -> ((Point, Move), Screen) -> ((Point, Move), Screen)
+drawPath cs pms = foldl' drawCmd pms cs
+  where
+    drawCmd :: ((Point, Move), Screen) -> Cmd -> ((Point, Move), Screen)
+    drawCmd ((p, m), sc) cmd = ((p', m'), sc')
+      where
+        (m', d')  = case cmd of
+                      L dl -> (turnCCW m, dl)
+                      R dr -> (turnCW  m, dr)
+        moves     = replicate d' m'
+        (p', sc') = foldl' drawStep (p, sc) moves
+
+        drawStep :: (Point, Screen) -> Move -> (Point, Screen)
+        drawStep (p', sc') m' = (p'', sc'')
+          where
+            p''  = move m' p'
+            sc'' = insertGrid p'' Scaffold sc'
 
 -- --------------------
 
@@ -153,12 +204,66 @@ stepM m ics0
            )
 -}
 
+parseCmds :: String -> Cmds
+parseCmds = parseInput pCmds
+
+pCmds :: Parser Cmds
+pCmds = sepBy1 pCmd (single ',')
+
+pCmd :: Parser Cmd
+pCmd = pDir <*> (single ',' *> natural)
+
+pDir :: Parser (Int -> Cmd)
+pDir = (single 'L' *> return L)
+       <|>
+       (single 'R' *> return R)
+
+showCmds :: Cmds -> String
+showCmds = intercalate "," . map showCmd
+  where
+    showCmd (L d) = "L," ++ show d
+    showCmd (R d) = "R," ++ show d
+
+showMacros :: Macros -> [String]
+showMacros mcs =
+  [ intercalate "," $ map showMac mcs ]
+  ++
+  (map showCmd' $ nub mcs)
+  where
+    showMac (A _) = "A"
+    showMac (B _) = "B"
+    showMac (C _) = "C"
+
+    showCmd' (A cs) = showCmds cs
+    showCmd' (B cs) = showCmds cs
+    showCmd' (C cs) = showCmds cs
+
+joinMacros :: Macros -> Cmds
+joinMacros = concatMap toCmds
+  where
+    toCmds (A cs) = cs
+    toCmds (B cs) = cs
+    toCmds (C cs) = cs
+
 -- ----------------------------------------
 
-test2, test1 :: IO ()
+test5, test3, test2, test1 :: IO ()
 test1 = putStrLn . unlines . renderGrid . markIntersections . newScreen $ ex1
 test2 = putStrLn . unlines . renderGrid . markIntersections . newScreen .
         fst . asciiCode $ fromCVS inp
+test3 = putStrLn . unlines $ showMacros macros
+
+test4 :: Bool
+test4 = cmds == joinMacros macros
+
+test5 = putStrLn . unlines . renderGrid $ sc3
+  where
+    sc0 = newScreen . fst . asciiCode $ fromCVS inp
+    sc1 = filterGrid (const (/= Scaffold)) sc0
+    sc2 = insertGrid p (VacuumRobot $ Just m) sc1
+    ((_p1, _m1), sc3) = drawPath cmds' ((p, m), sc2)
+    Just (p, m) = getVacuumRobot sc0
+    cmds' = parseCmds path
 
 ex1 :: String
 ex1 = unlines
@@ -182,5 +287,23 @@ res1 = undefined
 
 res2 :: Int
 res2 = undefined
+
+-- converted by hand from screen output
+path :: String
+path = "L,6,R,8,L,4,R,8,L,12,L,12,R,10,L,4,L,12,R,10,L,4,L,12,L,6,L,4,L,4,L,12,R,10,L,4,L,12,L,6,L,4,L,4,L,12,R,10,L,4,L,12,L,6,L,4,L,4,L,6,R,8,L,4,R,8,L,12,L,6,R,8,L,4,R,8,L,12"
+
+cmds :: Cmds
+cmds = parseCmds path
+
+-- solution found by playing with Data.List.Split. splitOn
+-- and looking for multiple occurences of a prefix of cmds
+
+macA, macB, macC :: Macro
+macA = A [L 6,R 8,L 4,R 8,L 12]
+macB = B [L 12, R 10,L 4]
+macC = C [L 12,L 6,L 4,L 4]
+
+macros :: Macros
+macros = [macA, macB, macB, macC, macB, macC, macB, macC, macA, macA]
 
 -- ----------------------------------------
