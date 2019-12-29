@@ -25,6 +25,7 @@ library
                        AOC.RenderBoard
                        Data.Graph
                        Data.Grid
+                       Data.Intcode
                        Data.Relation
                                               
   build-depends:       base >= 4.7 && < 5
@@ -772,22 +773,16 @@ executable 2019-15
   default-language:   Haskell2010
 
 executable 2019-16
-  main-is:             Year19/Day16/Main.hs
-  hs-source-dirs:      .
-  
-  other-modules:       AOC.Main1
-                       AOC.Prelude
-                       AOC.RenderBoard
-                                              
-  build-depends:       base >= 4.7 && < 5
-                     , adventofcode
-                     , containers
-                     , lens
-                     , megaparsec
-                     , mtl
-                     , optparse-applicative
-                     , unordered-containers
-                            
-  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
-  default-language:   Haskell2010
+  main-is:             Main.hs
+  hs-source-dirs:      Year19/Day16
+  build-depends:       base, adventofcode
+  ghc-options:         -threaded
+  default-language:    Haskell2010
+
+executable 2019-17
+  main-is:             Main.hs
+  hs-source-dirs:      Year19/Day17
+  build-depends:       base, adventofcode
+  ghc-options:         -threaded
+  default-language:    Haskell2010
 

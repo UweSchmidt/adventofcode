@@ -1,7 +1,12 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 
 module Data.Grid
   ( Point
+  , Move(..)
+  , move
+  , reachable
+
   , Grid
   , mkGrid
 
@@ -11,14 +16,18 @@ module Data.Grid
 
   , lookupGrid
   , insertGrid
+  , insertListGrid
   , deleteGrid
   , filterGrid
   , renderGrid
+  , pointsGrid
+  , elemsGrid
   )
 where
 
 import Control.Arrow
 import Control.Lens
+import Data.Foldable
 import Data.Maybe
 import Data.Semigroup
 
@@ -26,7 +35,26 @@ import qualified Data.HashMap.Strict as HM
 
 -- ----------------------------------------
 
-type Point      = (Int, Int)
+type Point = (Int, Int)
+
+data Move  = North | South | West | East
+
+deriving instance Show    Move
+deriving instance Eq      Move
+deriving instance Enum    Move
+deriving instance Bounded Move
+
+move :: Move -> Point -> Point
+move North (x, y) = (x, y - 1)
+move South (x, y) = (x, y + 1)
+move West  (x, y) = (x - 1, y)
+move East  (x, y) = (x + 1, y)
+
+reachable :: Point -> [Point]
+reachable p = map (flip move p) [minBound .. maxBound]
+
+-- ----------------------------------------
+
 type PointMap a = HM.HashMap Point a
 
 data Grid a =
@@ -36,9 +64,9 @@ data Grid a =
        , _gFromChar :: Char -> Maybe a
        }
 
-mkGrid :: a -> (a -> Char) -> (Char -> Maybe a) -> Grid a
-mkGrid def' to' fr' =
-  Grid { _gMap      = HM.empty
+mkGrid :: a -> (a -> Char) -> (Char -> Maybe a) -> [(Point, a)] -> Grid a
+mkGrid def' to' fr' xs' =
+  Grid { _gMap      = HM.fromList xs'
        , _gDefault  = def'
        , _gToChar   = to'
        , _gFromChar = fr'
@@ -59,13 +87,24 @@ lookupGrid p g =
   fromMaybe (g ^. gridDefaultVal) $ HM.lookup p (g ^. gridMap)
 
 insertGrid :: Point -> a -> Grid a -> Grid a
-insertGrid p v g = g & gridMap %~ HM.insert p v
+insertGrid p v g = g & gridMap . at p .~ Just v
 
 deleteGrid :: Point -> Grid a -> Grid a
-deleteGrid p g = g & gridMap %~ HM.delete p
+deleteGrid p g = g & gridMap . at p .~ Nothing
 
-filterGrid :: (a -> Bool) -> Grid a -> Grid a
-filterGrid p g = g & gridMap %~ HM.filter p
+insertListGrid :: [(Point, a)] -> Grid a -> Grid a
+insertListGrid ps g = foldl' ins g ps
+  where
+    ins acc (p, v) = insertGrid p v acc
+
+pointsGrid :: Grid a -> [Point]
+pointsGrid g = g ^. gridMap . to HM.keys
+
+elemsGrid :: Grid a -> [(Point, a)]
+elemsGrid g = g ^. gridMap . to HM.toList
+
+filterGrid :: (Point -> a -> Bool) -> Grid a -> Grid a
+filterGrid p g = g & gridMap %~ HM.filterWithKey p
 
 renderGrid :: Grid a -> [String]
 renderGrid g =

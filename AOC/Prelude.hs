@@ -13,6 +13,7 @@ module AOC.Prelude
   , module Data.Foldable
   , module Data.List
   , module Data.Maybe
+  , module Data.Semigroup
 
   -- parser stuff
   , module Text.Megaparsec
@@ -24,7 +25,7 @@ module AOC.Prelude
 where
 
 import Control.Arrow    ( (>>>), (***), (&&&), first, second )
-import Control.Lens     hiding (Empty, uncons)
+import Control.Lens     hiding (Empty, uncons, option)
 import Control.Monad.Except
 import Control.Monad.State.Strict
 
@@ -32,6 +33,7 @@ import Data.Char
 import Data.Foldable
 import Data.List
 import Data.Maybe
+import Data.Semigroup   hiding (option)
 
 import Debug.Trace      ( trace )
 
