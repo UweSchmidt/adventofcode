@@ -12,6 +12,7 @@ module AOC.Prelude
   , module Data.Char
   , module Data.Foldable
   , module Data.List
+  , module Data.List.Split
   , module Data.Maybe
   , module Data.Semigroup
 
@@ -32,6 +33,7 @@ import Control.Monad.State.Strict
 import Data.Char
 import Data.Foldable
 import Data.List
+import Data.List.Split  (splitOn)
 import Data.Maybe
 import Data.Semigroup   hiding (option)
 

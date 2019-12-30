@@ -23,7 +23,7 @@ import Data.Intcode     ( IntcodeProg
                         )
 
 import qualified Data.HashMap.Strict as M
-import qualified Data.Sequence as S
+import qualified Data.Sequence       as S
 
 -- ----------------------------------------
 

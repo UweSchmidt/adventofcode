@@ -23,7 +23,6 @@ import Data.Intcode     ( IntcodeProg
                         )
 
 import Data.Grid
-import Data.List.Split
 
 -- ----------------------------------------
 
@@ -44,17 +43,25 @@ captcha1 :: String -> String
 captcha1 = fromCVS >>> solve1 >>> show
 
 captcha2 :: String -> String
-captcha2 = fromCVS >>> solve2 >>> either id show
+captcha2 = fromCVS >>> solve2 >>> show
 
 solve1 :: IntcodeProg -> Int
 solve1 prog =
   sum . map (uncurry (*)) . filterIntersections $ sc
   where
-    sc = newScreen . fst . asciiCode $ prog
+    sc = newScreen . fst . asciiCode [] $ prog
 
-solve2 :: IntcodeProg -> Either String Int
+solve2 :: IntcodeProg -> Int
 solve2 prog =
-  undefined
+  last $ out2
+  where
+    out2  = fst . asciiInpCode inp2 $ prog2
+    prog2 = (2 :) . drop 1 $ prog  -- patch 1. instr to a multiply
+    inp2  = unlines $
+            showMacros macros
+            ++
+            ["n"]  -- no trace please
+
 
 -- --------------------
 
@@ -64,26 +71,29 @@ data Tile   = Scaffold  | ScaffoldX
 
 type Screen = Grid Tile
 
-data Cmd = L Int
-         | R Int
+type Cmd    = (CD, Int)
+data CD     = L | R
 
-data Macro = A Cmds
-           | B Cmds
-           | C Cmds
+type Macro  = (MC, Cmds)
+data MC     = A | B | C
 
 type Cmds   = [Cmd]
 type Macros = [Macro]
 
+-- --------------------
+
 deriving instance Show Tile
 deriving instance Eq   Tile
 
-deriving instance Show Cmd
-deriving instance Eq   Cmd
+deriving instance Show CD
+deriving instance Eq   CD
 
-deriving instance Show Macro
-deriving instance Eq   Macro
+deriving instance Show MC
+deriving instance Eq   MC
 
 -- --------------------
+--
+-- part 1
 
 filterIntersections :: Screen -> [Point]
 filterIntersections sc =
@@ -123,11 +133,11 @@ drawPath :: Cmds -> ((Point, Move), Screen) -> ((Point, Move), Screen)
 drawPath cs pms = foldl' drawCmd pms cs
   where
     drawCmd :: ((Point, Move), Screen) -> Cmd -> ((Point, Move), Screen)
-    drawCmd ((p, m), sc) cmd = ((p', m'), sc')
+    drawCmd ((p, m), sc) (cd, l) = ((p', m'), sc')
       where
-        (m', d')  = case cmd of
-                      L dl -> (turnCCW m, dl)
-                      R dr -> (turnCW  m, dr)
+        (m', d')  = case cd of
+                      L -> (turnCCW m, l)
+                      R -> (turnCW  m, l)
         moves     = replicate d' m'
         (p', sc') = foldl' drawStep (p, sc) moves
 
@@ -181,28 +191,22 @@ parseScreen =
         parseChar :: Int -> Char -> Maybe (Point, Tile)
         parseChar x c =  ((x, y),) <$> charToTile c
 
-asciiCode :: IntcodeProg -> ([Char], ICState)
-asciiCode prog =
-  (map toEnum $ ics0 ^. stdout, ics0)
-  where
-    ics0 = runMachine $ mkMachine [] prog
+asciiCode :: [Int] -> IntcodeProg -> ([Char], ICState)
+asciiCode inp' prog =
+  intCode inp' prog & _1 %~ map toEnum
 
-{-
-stepM :: Move -> ICState -> Game (MoveStat, ICState)
-stepM m ics0
-  | WaitForInput <- ics1 ^. status
-  , [res]        <- ics1 ^. stdout = return (isoMoveStatInt # res, ics1)
-  | otherwise                      = impossible $
-                                       "droid status = " ++
-                                       show (ics1 ^. status)
-
+intCode :: [Int] -> IntcodeProg -> ([Int], ICState)
+intCode inp' prog =
+  (ics0 ^. stdout, ics0)
   where
-    ics1 = runMachine
-           ( ics0 & status .~ OK                   -- enable restart
-                  & stdin  .~ [m ^. isoMoveInt]   -- set input to move
-                  & stdout .~ []                   -- clear old output
-           )
--}
+    ics0 = runMachine $ mkMachine inp' prog
+
+asciiInpCode :: [Char] -> IntcodeProg -> ([Int], ICState)
+asciiInpCode inp' = intCode (map fromEnum inp')
+
+-- --------------------
+--
+-- parsers
 
 parseCmds :: String -> Cmds
 parseCmds = parseInput pCmds
@@ -214,43 +218,33 @@ pCmd :: Parser Cmd
 pCmd = pDir <*> (single ',' *> natural)
 
 pDir :: Parser (Int -> Cmd)
-pDir = (single 'L' *> return L)
+pDir = (single 'L' *> return (L,))
        <|>
-       (single 'R' *> return R)
+       (single 'R' *> return (R,))
+
+-- pretty printers
 
 showCmds :: Cmds -> String
 showCmds = intercalate "," . map showCmd
   where
-    showCmd (L d) = "L," ++ show d
-    showCmd (R d) = "R," ++ show d
+    showCmd (L, d) = "L," ++ show d
+    showCmd (R, d) = "R," ++ show d
 
 showMacros :: Macros -> [String]
 showMacros mcs =
-  [ intercalate "," $ map showMac mcs ]
+  [ intercalate "," $ map (show . fst) mcs ]
   ++
-  (map showCmd' $ nub mcs)
-  where
-    showMac (A _) = "A"
-    showMac (B _) = "B"
-    showMac (C _) = "C"
-
-    showCmd' (A cs) = showCmds cs
-    showCmd' (B cs) = showCmds cs
-    showCmd' (C cs) = showCmds cs
+  (map (showCmds . snd) $ nub mcs)
 
 joinMacros :: Macros -> Cmds
-joinMacros = concatMap toCmds
-  where
-    toCmds (A cs) = cs
-    toCmds (B cs) = cs
-    toCmds (C cs) = cs
+joinMacros = concatMap snd
 
 -- ----------------------------------------
 
-test5, test3, test2, test1 :: IO ()
+test6, test5, test3, test2, test1 :: IO ()
 test1 = putStrLn . unlines . renderGrid . markIntersections . newScreen $ ex1
 test2 = putStrLn . unlines . renderGrid . markIntersections . newScreen .
-        fst . asciiCode $ fromCVS inp
+        fst . asciiCode [] $ fromCVS inp
 test3 = putStrLn . unlines $ showMacros macros
 
 test4 :: Bool
@@ -258,12 +252,18 @@ test4 = cmds == joinMacros macros
 
 test5 = putStrLn . unlines . renderGrid $ sc3
   where
-    sc0 = newScreen . fst . asciiCode $ fromCVS inp
+    sc0 = newScreen . fst . asciiCode [] $ fromCVS inp
     sc1 = filterGrid (const (/= Scaffold)) sc0
     sc2 = insertGrid p (VacuumRobot $ Just m) sc1
     ((_p1, _m1), sc3) = drawPath cmds' ((p, m), sc2)
     Just (p, m) = getVacuumRobot sc0
     cmds' = parseCmds path
+
+test6 = putStrLn . show . last $ out2
+  where
+    out2  = fst . asciiInpCode inp2 $ prog2
+    prog2 = (2 :) . drop 1 $ fromCVS inp
+    inp2  = unlines $ showMacros macros ++ ["n"]
 
 ex1 :: String
 ex1 = unlines
@@ -299,9 +299,9 @@ cmds = parseCmds path
 -- and looking for multiple occurences of a prefix of cmds
 
 macA, macB, macC :: Macro
-macA = A [L 6,R 8,L 4,R 8,L 12]
-macB = B [L 12, R 10,L 4]
-macC = C [L 12,L 6,L 4,L 4]
+macA = (A, [(L, 6),(R, 8),(L, 4),(R, 8),(L, 12)])
+macB = (B, [(L, 12), (R, 10),(L, 4)])
+macC = (C, [(L, 12),(L, 6),(L, 4),(L, 4)])
 
 macros :: Macros
 macros = [macA, macB, macB, macC, macB, macC, macB, macC, macA, macA]

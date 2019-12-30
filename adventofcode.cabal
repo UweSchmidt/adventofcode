@@ -34,6 +34,7 @@ library
                      , megaparsec
                      , mtl
                      , optparse-applicative
+                     , split
                      , unordered-containers
 
   default-language:   Haskell2010
@@ -693,84 +694,46 @@ executable 2019-11
   default-language:   Haskell2010
 
 executable 2019-12
-  main-is:             Year19/Day12/Main.hs
-  hs-source-dirs:      .
-  
-  other-modules:       AOC.Main1
-                       AOC.Prelude
-                       AOC.RenderBoard
-                       
-  build-depends:       base >= 4.7 && < 5
+  main-is:             Main.hs
+  hs-source-dirs:      Year19/Day12
+  build-depends:       base
+                     , adventofcode
                      , containers
                      , hashable
-                     , lens
-                     , megaparsec
-                     , mtl
-                     , optparse-applicative
                      , unordered-containers
-                            
-  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
-  default-language:   Haskell2010
+  ghc-options:         -threaded
+  default-language:    Haskell2010
 
 executable 2019-13
-  main-is:             Year19/Day13/Main.hs
-  hs-source-dirs:      .
-  
-  other-modules:       AOC.Main1
-                       AOC.Prelude
-                       AOC.RenderBoard
-                       Data.Intcode
-                       
-  build-depends:       base >= 4.7 && < 5
+  main-is:             Main.hs
+  hs-source-dirs:      Year19/Day13
+  build-depends:       base
+                     , adventofcode
                      , containers
-                     , lens
-                     , megaparsec
-                     , mtl
-                     , optparse-applicative
                      , unordered-containers
-                            
-  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
-  default-language:   Haskell2010
+  ghc-options:         -threaded
+  default-language:    Haskell2010
 
 executable 2019-14
-  main-is:             Year19/Day14/Main.hs
-  hs-source-dirs:      .
-  
-  other-modules:       AOC.Main1
-                       AOC.Prelude
-                       AOC.RenderBoard
-                       Data.Relation
-                                              
-  build-depends:       base >= 4.7 && < 5
+  main-is:             Main.hs
+  hs-source-dirs:      Year19/Day14
+  build-depends:       base
+                     , adventofcode
                      , containers
-                     , lens
-                     , megaparsec
-                     , mtl
-                     , optparse-applicative
                      , unordered-containers
                             
   ghc-options:        -threaded -rtsopts -with-rtsopts=-N
   default-language:   Haskell2010
 
 executable 2019-15
-  main-is:             Year19/Day15/Main.hs
-  hs-source-dirs:      .
-  
-  other-modules:       AOC.Main1
-                       AOC.Prelude
-                       AOC.RenderBoard
-                       Data.Intcode
-                       
-  build-depends:       base >= 4.7 && < 5
+  main-is:             Main.hs
+  hs-source-dirs:      Year19/Day15
+  build-depends:       base
+                     , adventofcode
                      , containers
-                     , lens
-                     , megaparsec
-                     , mtl
-                     , optparse-applicative
                      , unordered-containers
-                            
-  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
-  default-language:   Haskell2010
+  ghc-options:         -threaded
+  default-language:    Haskell2010
 
 executable 2019-16
   main-is:             Main.hs
