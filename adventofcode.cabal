@@ -27,7 +27,8 @@ library
                        Data.Grid
                        Data.Intcode
                        Data.Relation
-                                              
+                       Data.Graph.DirectedLabeled
+                                                                     
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , lens
